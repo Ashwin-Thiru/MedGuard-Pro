@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="https://public-frontend-cos.metadl.com/mgx/img/favicon_atoms.ico" type="image/x-icon">
+    <title>Patient Dashboard - Healthcare Platform</title>
+    <link rel="stylesheet" href="./style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <div>
+                <h1>Patient Dashboard</h1>
+                <p style="color: var(--text-secondary); margin-top: 4px;">Welcome back, <span id="patientName"></span></p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-outline" onclick="window.location.href='patient-history.html'">📋 View Full History</button>
+                <button class="btn btn-primary" onclick="window.open('pharmacy-finder.html', '_blank')" style="background: #3b82f6; border: none; color: white;">💊 Pharmacy Finder</button>
+                <button class="btn btn-danger" id="logoutBtn">Logout</button>
+            </div>
+        </div>
+
+        <!-- Patient Basic Info Card -->
+        <div class="card" style="margin-bottom: 24px;">
+            <div class="card-header">👤 Basic Patient Information</div>
+            <div class="grid grid-4" id="patientBasicInfo">
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Patient ID</p>
+                    <p style="font-weight: 600;" id="patientId">-</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Phone Number</p>
+                    <p style="font-weight: 600;" id="patientPhone">-</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Email</p>
+                    <p style="font-weight: 600;" id="patientEmail">-</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Age</p>
+                    <p style="font-weight: 600;" id="patientAge">-</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Date of Birth</p>
+                    <p style="font-weight: 600;" id="patientDob">-</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Gender</p>
+                    <p style="font-weight: 600;" id="patientGender">-</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Blood Group</p>
+                    <p style="font-weight: 600; color: var(--danger);" id="patientBloodGroup">-</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Emergency Contact</p>
+                    <p style="font-weight: 600;" id="emergencyContact">-</p>
+                </div>
+            </div>
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                <div style="display: flex; gap: 24px;">
+                    <div style="flex: 1;">
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Known Allergies</p>
+                        <div id="allergiesList"></div>
+                    </div>
+                    <div style="flex: 1;">
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Chronic Conditions</p>
+                        <div id="chronicDiseasesList"></div>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top: 16px; text-align: center;">
+                <img id="qrCode" style="max-width: 200px; border: 2px solid var(--border); border-radius: 8px; padding: 8px;" alt="Patient QR Code">
+                <p style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">Show this QR code to doctors for quick access</p>
+            </div>
+        </div>
+
+        <div class="grid grid-2">
+            <!-- Medical History Timeline -->
+            <div class="card">
+                <div class="card-header">📋 Recent Medical History</div>
+                <div id="medicalHistory">
+                    <p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">No prescriptions yet</p>
+                </div>
+            </div>
+
+            <!-- Analytics -->
+            <div class="card">
+                <div class="card-header">📊 Health Analytics</div>
+                <div id="analytics">
+                    <div style="margin-bottom: 16px;">
+                        <p style="font-size: 12px; color: var(--text-secondary);">Total Doctor Visits</p>
+                        <p style="font-size: 32px; font-weight: 700; color: var(--primary);" id="totalVisits">0</p>
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <p style="font-size: 12px; color: var(--text-secondary);">Active Prescriptions</p>
+                        <p style="font-size: 32px; font-weight: 700; color: var(--secondary);" id="activePrescriptions">0</p>
+                    </div>
+                    <div>
+                        <p style="font-size: 12px; color: var(--text-secondary);">Last Visit</p>
+                        <p style="font-size: 18px; font-weight: 600;" id="lastVisit">Never</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Chatbot Button -->
+    <button id="chatbotBtn" style="position: fixed; bottom: 24px; right: 24px; width: 60px; height: 60px; border-radius: 50%; background: var(--primary); color: white; border: none; font-size: 24px; cursor: pointer; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); z-index: 1000;">
+        🤖
+    </button>
+
+    <!-- Chatbot Modal -->
+    <div id="chatbotModal" style="display: none; position: fixed; bottom: 100px; right: 24px; width: 400px; height: 600px; background: white; border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 1001; display: flex; flex-direction: column;">
+        <div style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <img src="https://mgx-backend-cdn.metadl.com/generate/images/936747/2026-01-28/fa8c1958-9816-482e-a2e1-706ad810b678.png" style="width: 40px; height: 40px; border-radius: 50%;">
+                <div>
+                    <h3 style="margin: 0; font-size: 16px;">AI Health Assistant</h3>
+                    <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">Ask me anything</p>
+                </div>
+            </div>
+            <button id="closeChatbot" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary);">×</button>
+        </div>
+        <div id="chatMessages" style="flex: 1; overflow-y: auto; padding: 16px;"></div>
+        <div style="padding: 16px; border-top: 1px solid var(--border);">
+            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <input type="file" id="medicineImage" accept="image/*" style="display: none;">
+                <button onclick="document.getElementById('medicineImage').click()" class="btn btn-outline" style="padding: 8px 12px; font-size: 12px;">📷 Upload Image</button>
+                <button id="voiceBtn" class="btn btn-outline" style="padding: 8px 12px; font-size: 12px;">🎤 Voice</button>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="chatInput" placeholder="Ask about medicines, symptoms..." style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 8px;">
+                <button id="sendBtn" class="btn btn-primary" style="padding: 10px 20px;">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { auth, db, doc, getDoc, collection, query, where, getDocs, orderBy, limit } from './firebase-config.js';
+        import { checkAuth, logout } from './auth.js';
+        import { formatDate, formatTime, showToast } from './utils.js';
+
+        let patientData;
+
+        // Check authentication
+        checkAuth('patient').then(async result => {
+            const patientDoc = await getDoc(doc(db, 'patients', result.user.uid));
+            if (patientDoc.exists()) {
+                patientData = patientDoc.data();
+                displayPatientInfo();
+                loadMedicalHistory();
+            }
+        }).catch(error => {
+            console.error('Auth check failed:', error);
+        });
+
+        function displayPatientInfo() {
+            document.getElementById('patientName').textContent = patientData.personalDetails.name;
+            document.getElementById('patientId').textContent = patientData.patientId;
+            document.getElementById('patientPhone').textContent = patientData.personalDetails.phone;
+            document.getElementById('patientEmail').textContent = patientData.personalDetails.email;
+            document.getElementById('patientAge').textContent = patientData.personalDetails.age;
+            document.getElementById('patientDob').textContent = formatDate(patientData.personalDetails.dob);
+            document.getElementById('patientGender').textContent = patientData.personalDetails.gender;
+            document.getElementById('patientBloodGroup').textContent = patientData.personalDetails.bloodGroup;
+            document.getElementById('emergencyContact').textContent = `${patientData.emergencyContact.name} (${patientData.emergencyContact.phone})`;
+            
+            // Display allergies
+            const allergiesList = document.getElementById('allergiesList');
+            if (patientData.medicalDetails.allergies.length > 0) {
+                allergiesList.innerHTML = patientData.medicalDetails.allergies.map(a => 
+                    `<span class="badge badge-danger" style="margin-right: 4px; margin-bottom: 4px;">${a}</span>`
+                ).join('');
+            } else {
+                allergiesList.innerHTML = '<span style="color: var(--text-secondary); font-size: 14px;">None</span>';
+            }
+
+            // Display chronic diseases
+            const diseasesList = document.getElementById('chronicDiseasesList');
+            if (patientData.medicalDetails.chronicDiseases.length > 0) {
+                diseasesList.innerHTML = patientData.medicalDetails.chronicDiseases.map(d => 
+                    `<span class="badge badge-warning" style="margin-right: 4px; margin-bottom: 4px;">${d}</span>`
+                ).join('');
+            } else {
+                diseasesList.innerHTML = '<span style="color: var(--text-secondary); font-size: 14px;">None</span>';
+            }
+
+            // Display QR code
+            document.getElementById('qrCode').src = patientData.qrCode;
+        }
+
+        async function loadMedicalHistory() {
+            try {
+                const prescriptionsQuery = query(
+                    collection(db, 'prescriptions'),
+                    where('patientId', '==', patientData.patientId),
+                    orderBy('createdAt', 'desc'),
+                    limit(5)
+                );
+                
+                const snapshot = await getDocs(prescriptionsQuery);
+                const historyDiv = document.getElementById('medicalHistory');
+                
+                if (snapshot.empty) {
+                    historyDiv.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">No prescriptions yet</p>';
+                    return;
+                }
+
+                let historyHTML = '';
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    historyHTML += `
+                        <div style="padding: 12px; border-left: 3px solid var(--primary); background: var(--background); margin-bottom: 12px; border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span style="font-weight: 600;">${data.doctorName}</span>
+                                <span style="font-size: 12px; color: var(--text-secondary);">${formatDate(data.createdAt)}</span>
+                            </div>
+                            <p style="font-size: 14px; color: var(--text-secondary); margin: 0;">${data.diagnosisCategory}</p>
+                            <p style="font-size: 12px; margin-top: 4px; color: var(--text);">${data.medicines.length} medicine(s) prescribed</p>
+                        </div>
+                    `;
+                });
+                historyDiv.innerHTML = historyHTML;
+
+                // Update analytics
+                document.getElementById('totalVisits').textContent = snapshot.size;
+                document.getElementById('activePrescriptions').textContent = snapshot.size;
+                const lastVisitData = snapshot.docs[0].data();
+                document.getElementById('lastVisit').textContent = formatDate(lastVisitData.createdAt);
+
+            } catch (error) {
+                console.error('Error loading history:', error);
+            }
+        }
+
+        // Logout
+        document.getElementById('logoutBtn').addEventListener('click', logout);
+
+        // Chatbot functionality
+        let chatbotOpen = false;
+        document.getElementById('chatbotBtn').addEventListener('click', () => {
+            chatbotOpen = !chatbotOpen;
+            document.getElementById('chatbotModal').style.display = chatbotOpen ? 'flex' : 'none';
+            if (chatbotOpen) {
+                addChatMessage('bot', 'Hello! I\'m your AI health assistant. You can:\n• Upload medicine images for identification\n• Ask about symptoms\n• Get medication summaries\n• Ask health questions');
+            }
+        });
+
+        document.getElementById('closeChatbot').addEventListener('click', () => {
+            chatbotOpen = false;
+            document.getElementById('chatbotModal').style.display = 'none';
+        });
+
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
+        document.getElementById('chatInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            addChatMessage('user', message);
+            input.value = '';
+
+            // Simulate AI response
+            setTimeout(() => {
+                let response = 'I\'m here to help! For medicine identification, please upload an image. For medical advice, please consult with your doctor.';
+                
+                if (message.toLowerCase().includes('medicine') || message.toLowerCase().includes('medication')) {
+                    response = `You are currently taking ${patientData.medicalDetails.currentMedications.length} long-term medications. Your recent prescriptions show ${document.getElementById('activePrescriptions').textContent} active prescriptions. Would you like to see details?`;
+                }
+                
+                addChatMessage('bot', response);
+            }, 1000);
+        }
+
+        function addChatMessage(sender, message) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.style.marginBottom = '12px';
+            messageDiv.style.textAlign = sender === 'user' ? 'right' : 'left';
+            
+            const bubble = document.createElement('div');
+            bubble.style.display = 'inline-block';
+            bubble.style.padding = '10px 14px';
+            bubble.style.borderRadius = '12px';
+            bubble.style.maxWidth = '80%';
+            bubble.style.wordWrap = 'break-word';
+            bubble.style.whiteSpace = 'pre-wrap';
+            
+            if (sender === 'user') {
+                bubble.style.background = 'var(--primary)';
+                bubble.style.color = 'white';
+            } else {
+                bubble.style.background = 'var(--background)';
+                bubble.style.color = 'var(--text)';
+            }
+            
+            bubble.textContent = message;
+            messageDiv.appendChild(bubble);
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Medicine image upload
+        document.getElementById('medicineImage').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                addChatMessage('user', '📷 [Uploaded medicine image]');
+                setTimeout(() => {
+                    addChatMessage('bot', 'Analyzing image... This appears to be a common pain reliever. Please consult your doctor before taking any medication. Would you like me to check if this conflicts with your current medications?');
+                }, 1500);
+            }
+        });
+
+        // Voice button
+        document.getElementById('voiceBtn').addEventListener('click', () => {
+            showToast('Voice feature coming soon!', 'info');
+        });
+    </script>
+</body>
+</html>

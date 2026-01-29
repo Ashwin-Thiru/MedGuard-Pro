@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="https://public-frontend-cos.metadl.com/mgx/img/favicon_atoms.ico" type="image/x-icon">
+    <title>Patient Details - Healthcare Platform</title>
+    <link rel="stylesheet" href="./style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <div>
+                <h1>Patient Details</h1>
+                <button class="btn btn-outline" onclick="window.history.back()" style="margin-top: 8px;">← Back to Dashboard</button>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-primary" id="addPrescriptionBtn">➕ Add Prescription</button>
+            </div>
+        </div>
+
+        <!-- Patient Basic Info -->
+        <div class="card" style="margin-bottom: 24px;">
+            <div class="card-header">👤 Patient Information (Read-only)</div>
+            <div class="grid grid-4" id="patientInfo"></div>
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                <div class="grid grid-2">
+                    <div>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Known Allergies</p>
+                        <div id="allergiesList"></div>
+                    </div>
+                    <div>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Chronic Conditions</p>
+                        <div id="chronicDiseasesList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Medical History -->
+        <div class="card">
+            <div class="card-header">📋 Full Medical History</div>
+            <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                <input type="date" id="filterDate" class="form-input" placeholder="Filter by date">
+                <select id="filterDoctor" class="form-select">
+                    <option value="">All Doctors</option>
+                </select>
+                <select id="filterCategory" class="form-select">
+                    <option value="">All Categories</option>
+                    <option value="Fever">Fever</option>
+                    <option value="Allergy">Allergy</option>
+                    <option value="Infection">Infection</option>
+                    <option value="Pain">Pain</option>
+                    <option value="Other">Other</option>
+                </select>
+                <button id="applyFilters" class="btn btn-secondary">Apply Filters</button>
+                <button id="clearFilters" class="btn btn-outline">Clear</button>
+            </div>
+            <div id="medicalHistory"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { auth, db, doc, getDoc, collection, query, where, getDocs, orderBy } from './firebase-config.js';
+        import { checkAuth } from './auth.js';
+        import { formatDate, formatTime, showToast } from './utils.js';
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const patientId = urlParams.get('patientId');
+        let patientData;
+        let allPrescriptions = [];
+
+        if (!patientId) {
+            showToast('No patient ID provided', 'error');
+            setTimeout(() => window.history.back(), 2000);
+        }
+
+        // Check authentication
+        checkAuth('doctor').then(async result => {
+            const doctorDoc = await getDoc(doc(db, 'doctors', result.user.uid));
+            if (doctorDoc.exists() && doctorDoc.data().verificationStatus === 'approved') {
+                await loadPatientData();
+                await loadMedicalHistory();
+            } else {
+                showToast('You are not authorized to view patient details', 'error');
+                setTimeout(() => window.history.back(), 2000);
+            }
+        }).catch(error => {
+            console.error('Auth check failed:', error);
+        });
+
+        async function loadPatientData() {
+            try {
+                const patientDoc = await getDoc(doc(db, 'patients', patientId));
+                if (!patientDoc.exists()) {
+                    showToast('Patient not found', 'error');
+                    setTimeout(() => window.history.back(), 2000);
+                    return;
+                }
+
+                patientData = patientDoc.data();
+                displayPatientInfo();
+            } catch (error) {
+                console.error('Error loading patient data:', error);
+                showToast('Error loading patient data', 'error');
+            }
+        }
+
+        function displayPatientInfo() {
+            const infoDiv = document.getElementById('patientInfo');
+            infoDiv.innerHTML = `
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Full Name</p>
+                    <p style="font-weight: 600;">${patientData.personalDetails.name}</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Patient ID</p>
+                    <p style="font-weight: 600;">${patientData.patientId}</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Phone Number</p>
+                    <p style="font-weight: 600;">${patientData.personalDetails.phone}</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Email</p>
+                    <p style="font-weight: 600;">${patientData.personalDetails.email}</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Age</p>
+                    <p style="font-weight: 600;">${patientData.personalDetails.age}</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Date of Birth</p>
+                    <p style="font-weight: 600;">${formatDate(patientData.personalDetails.dob)}</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Gender</p>
+                    <p style="font-weight: 600;">${patientData.personalDetails.gender}</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Blood Group</p>
+                    <p style="font-weight: 600; color: var(--danger);">${patientData.personalDetails.bloodGroup}</p>
+                </div>
+                <div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Emergency Contact</p>
+                    <p style="font-weight: 600;">${patientData.emergencyContact.name} (${patientData.emergencyContact.phone})</p>
+                </div>
+            `;
+
+            // Display allergies
+            const allergiesList = document.getElementById('allergiesList');
+            if (patientData.medicalDetails.allergies.length > 0) {
+                allergiesList.innerHTML = patientData.medicalDetails.allergies.map(a => 
+                    `<span class="badge badge-danger" style="margin-right: 4px; margin-bottom: 4px;">${a}</span>`
+                ).join('');
+            } else {
+                allergiesList.innerHTML = '<span style="color: var(--text-secondary); font-size: 14px;">None</span>';
+            }
+
+            // Display chronic diseases
+            const diseasesList = document.getElementById('chronicDiseasesList');
+            if (patientData.medicalDetails.chronicDiseases.length > 0) {
+                diseasesList.innerHTML = patientData.medicalDetails.chronicDiseases.map(d => 
+                    `<span class="badge badge-warning" style="margin-right: 4px; margin-bottom: 4px;">${d}</span>`
+                ).join('');
+            } else {
+                diseasesList.innerHTML = '<span style="color: var(--text-secondary); font-size: 14px;">None</span>';
+            }
+        }
+
+        async function loadMedicalHistory() {
+            try {
+                const prescriptionsQuery = query(
+                    collection(db, 'prescriptions'),
+                    where('patientId', '==', patientData.patientId),
+                    orderBy('createdAt', 'desc')
+                );
+                
+                const snapshot = await getDocs(prescriptionsQuery);
+                allPrescriptions = [];
+                const doctors = new Set();
+
+                snapshot.forEach(doc => {
+                    const data = { id: doc.id, ...doc.data() };
+                    allPrescriptions.push(data);
+                    doctors.add(data.doctorName);
+                });
+
+                // Populate doctor filter
+                const doctorFilter = document.getElementById('filterDoctor');
+                doctors.forEach(doctor => {
+                    const option = document.createElement('option');
+                    option.value = doctor;
+                    option.textContent = doctor;
+                    doctorFilter.appendChild(option);
+                });
+
+                displayMedicalHistory(allPrescriptions);
+            } catch (error) {
+                console.error('Error loading medical history:', error);
+                showToast('Error loading medical history', 'error');
+            }
+        }
+
+        function displayMedicalHistory(prescriptions) {
+            const historyDiv = document.getElementById('medicalHistory');
+            
+            if (prescriptions.length === 0) {
+                historyDiv.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">No medical history found</p>';
+                return;
+            }
+
+            let html = '';
+            prescriptions.forEach(prescription => {
+                html += `
+                    <div class="card" style="margin-bottom: 16px; border-left: 4px solid var(--primary);">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                            <div>
+                                <h4 style="margin: 0 0 4px 0;">Dr. ${prescription.doctorName}</h4>
+                                <p style="font-size: 14px; color: var(--text-secondary); margin: 0;">${prescription.diagnosisCategory}</p>
+                            </div>
+                            <div style="text-align: right;">
+                                <p style="font-size: 14px; font-weight: 600; margin: 0;">${formatDate(prescription.createdAt)}</p>
+                                <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">${formatTime(prescription.createdAt)}</p>
+                            </div>
+                        </div>
+                        <div style="background: var(--background); padding: 12px; border-radius: 8px;">
+                            <p style="font-weight: 600; margin-bottom: 8px;">Reason: ${prescription.visitReason}</p>
+                            <p style="font-weight: 600; margin-bottom: 8px;">Medicines:</p>
+                            ${prescription.medicines.map(med => `
+                                <div style="margin-bottom: 8px; padding: 8px; background: white; border-radius: 4px;">
+                                    <p style="font-weight: 600; margin: 0 0 4px 0;">${med.name} - ${med.dosage}</p>
+                                    <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">
+                                        ${med.timing.morning ? '🌅 Morning' : ''} 
+                                        ${med.timing.afternoon ? '☀️ Afternoon' : ''} 
+                                        ${med.timing.night ? '🌙 Night' : ''} 
+                                        | ${med.beforeAfterFood} food | ${med.duration} days
+                                    </p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            historyDiv.innerHTML = html;
+        }
+
+        // Filter functionality
+        document.getElementById('applyFilters').addEventListener('click', () => {
+            const dateFilter = document.getElementById('filterDate').value;
+            const doctorFilter = document.getElementById('filterDoctor').value;
+            const categoryFilter = document.getElementById('filterCategory').value;
+
+            let filtered = [...allPrescriptions];
+
+            if (dateFilter) {
+                filtered = filtered.filter(p => p.createdAt.startsWith(dateFilter));
+            }
+
+            if (doctorFilter) {
+                filtered = filtered.filter(p => p.doctorName === doctorFilter);
+            }
+
+            if (categoryFilter) {
+                filtered = filtered.filter(p => p.diagnosisCategory === categoryFilter);
+            }
+
+            displayMedicalHistory(filtered);
+        });
+
+        document.getElementById('clearFilters').addEventListener('click', () => {
+            document.getElementById('filterDate').value = '';
+            document.getElementById('filterDoctor').value = '';
+            document.getElementById('filterCategory').value = '';
+            displayMedicalHistory(allPrescriptions);
+        });
+
+        // Add prescription button
+        document.getElementById('addPrescriptionBtn').addEventListener('click', () => {
+            window.location.href = `doctor-add-prescription.html?patientId=${patientId}`;
+        });
+    </script>
+</body>
+</html>

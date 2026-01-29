@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="https://public-frontend-cos.metadl.com/mgx/img/favicon_atoms.ico" type="image/x-icon">
+    <title>Medical History - Healthcare Platform</title>
+    <link rel="stylesheet" href="./style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <div>
+                <h1>Complete Medical History</h1>
+                <button class="btn btn-outline" onclick="window.location.href='patient-dashboard.html'" style="margin-top: 8px;">← Back to Dashboard</button>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="card" style="margin-bottom: 24px;">
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <input type="date" id="filterDate" class="form-input" style="flex: 1; min-width: 200px;">
+                <select id="filterDoctor" class="form-select" style="flex: 1; min-width: 200px;">
+                    <option value="">All Doctors</option>
+                </select>
+                <select id="filterCategory" class="form-select" style="flex: 1; min-width: 200px;">
+                    <option value="">All Categories</option>
+                    <option value="Fever">Fever</option>
+                    <option value="Allergy">Allergy</option>
+                    <option value="Infection">Infection</option>
+                    <option value="Pain">Pain</option>
+                    <option value="Respiratory">Respiratory</option>
+                    <option value="Digestive">Digestive</option>
+                    <option value="Skin">Skin</option>
+                    <option value="Other">Other</option>
+                </select>
+                <button id="applyFilters" class="btn btn-secondary">Apply</button>
+                <button id="clearFilters" class="btn btn-outline">Clear</button>
+            </div>
+        </div>
+
+        <!-- History Timeline -->
+        <div id="historyTimeline"></div>
+    </div>
+
+    <script type="module">
+        import { auth, db, doc, getDoc, collection, query, where, getDocs, orderBy } from './firebase-config.js';
+        import { checkAuth } from './auth.js';
+        import { formatDate, formatTime, showToast } from './utils.js';
+
+        let patientData;
+        let allPrescriptions = [];
+
+        // Check authentication
+        checkAuth('patient').then(async result => {
+            const patientDoc = await getDoc(doc(db, 'patients', result.user.uid));
+            if (patientDoc.exists()) {
+                patientData = patientDoc.data();
+                await loadMedicalHistory();
+            }
+        }).catch(error => {
+            console.error('Auth check failed:', error);
+        });
+
+        async function loadMedicalHistory() {
+            try {
+                const prescriptionsQuery = query(
+                    collection(db, 'prescriptions'),
+                    where('patientId', '==', patientData.patientId),
+                    orderBy('createdAt', 'desc')
+                );
+                
+                const snapshot = await getDocs(prescriptionsQuery);
+                allPrescriptions = [];
+                const doctors = new Set();
+
+                snapshot.forEach(doc => {
+                    const data = { id: doc.id, ...doc.data() };
+                    allPrescriptions.push(data);
+                    doctors.add(data.doctorName);
+                });
+
+                // Populate doctor filter
+                const doctorFilter = document.getElementById('filterDoctor');
+                doctors.forEach(doctor => {
+                    const option = document.createElement('option');
+                    option.value = doctor;
+                    option.textContent = doctor;
+                    doctorFilter.appendChild(option);
+                });
+
+                displayHistory(allPrescriptions);
+            } catch (error) {
+                console.error('Error loading medical history:', error);
+                showToast('Error loading medical history', 'error');
+            }
+        }
+
+        function displayHistory(prescriptions) {
+            const timelineDiv = document.getElementById('historyTimeline');
+            
+            if (prescriptions.length === 0) {
+                timelineDiv.innerHTML = '<div class="card"><p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">No medical history found</p></div>';
+                return;
+            }
+
+            let html = '';
+            prescriptions.forEach((prescription, index) => {
+                html += `
+                    <div class="card" style="margin-bottom: 24px; position: relative;">
+                        <div style="position: absolute; left: -12px; top: 24px; width: 24px; height: 24px; background: var(--primary); border-radius: 50%; border: 4px solid var(--background);"></div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+                            <div>
+                                <h3 style="margin: 0 0 4px 0;">Dr. ${prescription.doctorName}</h3>
+                                <p style="font-size: 14px; color: var(--text-secondary); margin: 0;">${prescription.professionalDetails?.specialization || 'Medical Professional'}</p>
+                            </div>
+                            <div style="text-align: right;">
+                                <p style="font-size: 16px; font-weight: 600; margin: 0;">${formatDate(prescription.createdAt)}</p>
+                                <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">${formatTime(prescription.createdAt)}</p>
+                                <span class="badge badge-info" style="margin-top: 4px;">${prescription.diagnosisCategory}</span>
+                            </div>
+                        </div>
+                        
+                        <div style="background: var(--background); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                            <p style="font-weight: 600; margin: 0 0 8px 0;">Reason for Visit:</p>
+                            <p style="margin: 0; color: var(--text-secondary);">${prescription.visitReason}</p>
+                        </div>
+
+                        <div>
+                            <p style="font-weight: 600; margin: 0 0 12px 0;">💊 Prescribed Medicines:</p>
+                            ${prescription.medicines.map((med, idx) => `
+                                <div style="background: white; border: 1px solid var(--border); padding: 12px; border-radius: 8px; margin-bottom: 8px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                                        <div>
+                                            <p style="font-weight: 600; font-size: 16px; margin: 0 0 4px 0;">${idx + 1}. ${med.name}</p>
+                                            <p style="font-size: 14px; color: var(--text-secondary); margin: 0;">Dosage: ${med.dosage}</p>
+                                        </div>
+                                        <span class="badge badge-info">${med.duration} days</span>
+                                    </div>
+                                    <div style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px;">
+                                        <div style="display: flex; align-items: center; gap: 4px;">
+                                            <span style="font-weight: 600;">Timing:</span>
+                                            ${med.timing.morning ? '<span class="badge" style="background: #FEF3C7; color: #92400E;">🌅 Morning</span>' : ''}
+                                            ${med.timing.afternoon ? '<span class="badge" style="background: #FEF3C7; color: #92400E;">☀️ Afternoon</span>' : ''}
+                                            ${med.timing.night ? '<span class="badge" style="background: #DBEAFE; color: #1E40AF;">🌙 Night</span>' : ''}
+                                        </div>
+                                        <div>
+                                            <span style="font-weight: 600;">Food:</span> ${med.beforeAfterFood}
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            timelineDiv.innerHTML = html;
+        }
+
+        // Filter functionality
+        document.getElementById('applyFilters').addEventListener('click', () => {
+            const dateFilter = document.getElementById('filterDate').value;
+            const doctorFilter = document.getElementById('filterDoctor').value;
+            const categoryFilter = document.getElementById('filterCategory').value;
+
+            let filtered = [...allPrescriptions];
+
+            if (dateFilter) {
+                filtered = filtered.filter(p => p.createdAt.startsWith(dateFilter));
+            }
+
+            if (doctorFilter) {
+                filtered = filtered.filter(p => p.doctorName === doctorFilter);
+            }
+
+            if (categoryFilter) {
+                filtered = filtered.filter(p => p.diagnosisCategory === categoryFilter);
+            }
+
+            displayHistory(filtered);
+            showToast(`Showing ${filtered.length} prescription(s)`, 'info');
+        });
+
+        document.getElementById('clearFilters').addEventListener('click', () => {
+            document.getElementById('filterDate').value = '';
+            document.getElementById('filterDoctor').value = '';
+            document.getElementById('filterCategory').value = '';
+            displayHistory(allPrescriptions);
+        });
+    </script>
+</body>
+</html>

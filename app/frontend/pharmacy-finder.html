@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharmacy Finder - Find pharmacies near you</title>
+    <link rel="stylesheet" href="pharmacy-style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <button onclick="window.close()" class="back-btn" title="Go Back">
+                        ← Back
+                    </button>
+                    <div>
+                        <div class="logo">
+                            <span class="icon">💊</span>
+                            <h1>Pharmacy Finder</h1>
+                        </div>
+                        <p class="tagline">Find pharmacies near you</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Search Section -->
+        <section class="search-section">
+            <div class="search-container">
+                <input 
+                    type="number" 
+                    id="radius" 
+                    min="1" 
+                    max="50" 
+                    value="5" 
+                    placeholder="Search radius (km)"
+                    class="search-input"
+                >
+                <button id="searchBtn" class="search-btn">
+                    <span id="btnText">Find Pharmacies</span>
+                    <span id="btnLoader" class="loader hidden"></span>
+                </button>
+            </div>
+            <div id="locationInfo" class="location-info hidden"></div>
+            <div id="analysisProgress" class="analysis-progress hidden">Analyzing reviews...</div>
+        </section>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Map Section -->
+            <section class="map-section">
+                <div id="map" class="map-container"></div>
+                <div id="mapLoader" class="map-loader hidden">
+                    <div class="spinner"></div>
+                    <p>Loading map...</p>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section">
+                <!-- Welcome Message -->
+                <div id="welcomeMessage" class="welcome-message">
+                    <div class="welcome-icon">🎯</div>
+                    <h2>Welcome</h2>
+                    <p>Click "Find Pharmacies" to start.</p>
+                </div>
+
+                <!-- Sort Controls -->
+                <div id="sortControls" class="sort-controls hidden">
+                    <button id="sortNearest" class="sort-btn active">
+                        📍 Nearest First
+                    </button>
+                    <button id="sortTopRated" class="sort-btn">
+                        ⭐ Top Rated
+                    </button>
+                </div>
+
+                <!-- Results Header -->
+                <div id="resultsHeader" class="results-header hidden">
+                    <h2>Nearby Pharmacies</h2>
+                    <span id="resultCount" class="result-count"></span>
+                </div>
+
+                <!-- Pharmacy List -->
+                <div id="pharmacyList" class="pharmacy-list"></div>
+
+                <!-- No Results -->
+                <div id="noResults" class="no-results hidden">
+                    <div class="no-results-icon">🔍</div>
+                    <p>No pharmacies found in this area.</p>
+                    <p class="suggestion">Try increasing the search radius.</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-message hidden"></div>
+    </div>
+
+    <!-- Review Modal -->
+    <div id="reviewModal" class="modal hidden">
+        <div class="modal-dialog">
+            <button id="closeModal" class="close-modal">&times;</button>
+            <div id="modalContent" class="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="config.js"></script>
+    <script src="ReviewAnalyzer.js"></script>
+    <script src="maps.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

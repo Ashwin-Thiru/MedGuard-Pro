@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="https://public-frontend-cos.metadl.com/mgx/img/favicon_atoms.ico" type="image/x-icon">
+    <title>Verify Doctor - Healthcare Platform</title>
+    <link rel="stylesheet" href="./style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <div>
+                <h1>Doctor Verification</h1>
+                <button class="btn btn-outline" onclick="window.history.back()" style="margin-top: 8px;">← Back to Dashboard</button>
+            </div>
+        </div>
+
+        <!-- Doctor Details -->
+        <div class="card" style="margin-bottom: 24px;">
+            <div class="card-header">👨‍⚕️ Doctor Information</div>
+            <div id="doctorInfo"></div>
+        </div>
+
+        <!-- Documents -->
+        <div class="card" style="margin-bottom: 24px;">
+            <div class="card-header">📄 Uploaded Documents</div>
+            <div id="documentsSection"></div>
+        </div>
+
+        <!-- Verification Actions -->
+        <div class="card">
+            <div class="card-header">✅ Verification Decision</div>
+            <div class="form-group">
+                <label class="form-label">Rejection Reason (if rejecting)</label>
+                <textarea id="rejectionReason" class="form-textarea" placeholder="Provide reason for rejection"></textarea>
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: center; margin-top: 24px;">
+                <button id="approveBtn" class="btn btn-secondary" style="padding: 14px 48px; font-size: 16px;">
+                    ✅ Approve Doctor
+                </button>
+                <button id="rejectBtn" class="btn btn-danger" style="padding: 14px 48px; font-size: 16px;">
+                    ❌ Reject Application
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { auth, db, doc, getDoc, updateDoc } from './firebase-config.js';
+        import { checkAuth } from './auth.js';
+        import { formatDate, showToast } from './utils.js';
+        import { sendVerificationNotification } from './notifications.js';
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const doctorId = urlParams.get('doctorId');
+        let doctorData;
+
+        if (!doctorId) {
+            showToast('No doctor ID provided', 'error');
+            setTimeout(() => window.history.back(), 2000);
+        }
+
+        // Check authentication
+        checkAuth('admin').then(async () => {
+            await loadDoctorData();
+        }).catch(error => {
+            console.error('Auth check failed:', error);
+        });
+
+        async function loadDoctorData() {
+            try {
+                const doctorDoc = await getDoc(doc(db, 'doctors', doctorId));
+                if (!doctorDoc.exists()) {
+                    showToast('Doctor not found', 'error');
+                    setTimeout(() => window.history.back(), 2000);
+                    return;
+                }
+
+                doctorData = doctorDoc.data();
+                displayDoctorInfo();
+                displayDocuments();
+            } catch (error) {
+                console.error('Error loading doctor data:', error);
+                showToast('Error loading doctor data', 'error');
+            }
+        }
+
+        function displayDoctorInfo() {
+            const infoDiv = document.getElementById('doctorInfo');
+            infoDiv.innerHTML = `
+                <div class="grid grid-2">
+                    <div>
+                        <h4>Personal Details</h4>
+                        <p><strong>Name:</strong> ${doctorData.personalDetails.name}</p>
+                        <p><strong>Phone:</strong> ${doctorData.personalDetails.phone}</p>
+                        <p><strong>Email:</strong> ${doctorData.personalDetails.email}</p>
+                        <p><strong>DOB:</strong> ${formatDate(doctorData.personalDetails.dob)}</p>
+                        <p><strong>Gender:</strong> ${doctorData.personalDetails.gender}</p>
+                    </div>
+                    <div>
+                        <h4>Professional Details</h4>
+                        <p><strong>Registration Number:</strong> ${doctorData.professionalDetails.registrationNumber}</p>
+                        <p><strong>Qualification:</strong> ${doctorData.professionalDetails.qualification}</p>
+                        <p><strong>Specialization:</strong> ${doctorData.professionalDetails.specialization}</p>
+                        <p><strong>Experience:</strong> ${doctorData.professionalDetails.experience} years</p>
+                        <p><strong>Hospital:</strong> ${doctorData.professionalDetails.hospitalName}</p>
+                        <p><strong>Address:</strong> ${doctorData.professionalDetails.clinicAddress}</p>
+                        <p><strong>Timings:</strong> ${doctorData.professionalDetails.consultationTimings}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function displayDocuments() {
+            const docsDiv = document.getElementById('documentsSection');
+            const docs = doctorData.documents;
+            
+            docsDiv.innerHTML = `
+                <div class="grid grid-2" style="gap: 16px;">
+                    ${createDocumentCard('Degree Certificate', docs.degreeUrl)}
+                    ${createDocumentCard('Medical Council Registration', docs.registrationUrl)}
+                    ${docs.specializationUrl ? createDocumentCard('Specialization Certificate', docs.specializationUrl) : ''}
+                    ${createDocumentCard('Government ID', docs.govIdUrl)}
+                    ${createDocumentCard('Profile Photo', docs.photoUrl)}
+                </div>
+            `;
+        }
+
+        function createDocumentCard(title, url) {
+            const isImage = url.match(/\.(jpg|jpeg|png|gif)$/i);
+            return `
+                <div class="card">
+                    <h4 style="margin: 0 0 12px 0;">${title}</h4>
+                    ${isImage ? 
+                        `<img src="${url}" style="width: 100%; border-radius: 8px; margin-bottom: 12px;" alt="${title}">` :
+                        `<div style="padding: 40px; background: var(--background); border-radius: 8px; text-align: center; margin-bottom: 12px;">
+                            <p style="font-size: 48px; margin: 0;">📄</p>
+                            <p style="margin: 8px 0 0 0; color: var(--text-secondary);">PDF Document</p>
+                        </div>`
+                    }
+                    <a href="${url}" target="_blank" class="btn btn-outline" style="width: 100%; text-align: center; text-decoration: none;">
+                        View Document
+                    </a>
+                </div>
+            `;
+        }
+
+        // Approve button
+        document.getElementById('approveBtn').addEventListener('click', async () => {
+            if (!confirm('Are you sure you want to approve this doctor?')) return;
+
+            try {
+                showToast('Approving doctor...', 'info');
+
+                await updateDoc(doc(db, 'doctors', doctorId), {
+                    verificationStatus: 'approved',
+                    verifiedBy: auth.currentUser.uid,
+                    verifiedAt: new Date().toISOString()
+                });
+
+                // Send SMS notification
+                try {
+                    await sendVerificationNotification(
+                        doctorData.personalDetails.phone,
+                        'approved'
+                    );
+                } catch (smsError) {
+                    console.error('SMS notification failed:', smsError);
+                }
+
+                showToast('Doctor approved successfully!', 'success');
+                
+                setTimeout(() => {
+                    window.location.href = 'admin-dashboard.html';
+                }, 2000);
+
+            } catch (error) {
+                console.error('Error approving doctor:', error);
+                showToast('Error approving doctor: ' + error.message, 'error');
+            }
+        });
+
+        // Reject button
+        document.getElementById('rejectBtn').addEventListener('click', async () => {
+            const reason = document.getElementById('rejectionReason').value.trim();
+            
+            if (!reason) {
+                showToast('Please provide a reason for rejection', 'error');
+                return;
+            }
+
+            if (!confirm('Are you sure you want to reject this doctor application?')) return;
+
+            try {
+                showToast('Rejecting application...', 'info');
+
+                await updateDoc(doc(db, 'doctors', doctorId), {
+                    verificationStatus: 'rejected',
+                    verificationReason: reason,
+                    verifiedBy: auth.currentUser.uid,
+                    verifiedAt: new Date().toISOString()
+                });
+
+                // Send SMS notification
+                try {
+                    await sendVerificationNotification(
+                        doctorData.personalDetails.phone,
+                        'rejected',
+                        reason
+                    );
+                } catch (smsError) {
+                    console.error('SMS notification failed:', smsError);
+                }
+
+                showToast('Application rejected', 'success');
+                
+                setTimeout(() => {
+                    window.location.href = 'admin-dashboard.html';
+                }, 2000);
+
+            } catch (error) {
+                console.error('Error rejecting doctor:', error);
+                showToast('Error rejecting doctor: ' + error.message, 'error');
+            }
+        });
+    </script>
+</body>
+</html>

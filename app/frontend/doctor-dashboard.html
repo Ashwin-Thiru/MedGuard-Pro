@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="https://public-frontend-cos.metadl.com/mgx/img/favicon_atoms.ico" type="image/x-icon">
+    <title>Doctor Dashboard - Healthcare Platform</title>
+    <link rel="stylesheet" href="./style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <div>
+                <h1>Doctor Dashboard</h1>
+                <p style="color: var(--text-secondary); margin-top: 4px;">Welcome, Dr. <span id="doctorName"></span></p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-danger" id="logoutBtn">Logout</button>
+            </div>
+        </div>
+
+        <!-- Verification Status Alert -->
+        <div id="verificationAlert" style="display: none; background: var(--warning); color: white; padding: 16px; border-radius: 8px; margin-bottom: 24px; text-align: center;">
+            <p style="margin: 0; font-weight: 600;">⏳ Your profile is under verification. You will be notified once approved.</p>
+        </div>
+
+        <div id="verifiedContent" style="display: none;">
+            <!-- Search Patient Section -->
+            <div class="card" style="margin-bottom: 24px;">
+                <div class="card-header">🔍 Search Patient</div>
+                <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <input type="text" id="searchInput" placeholder="Search by Patient ID or Phone Number" class="form-input" style="flex: 1;">
+                    <button id="searchBtn" class="btn btn-primary">Search</button>
+                    <button id="qrScanBtn" class="btn btn-secondary">📷 Scan QR</button>
+                </div>
+                <div id="searchResults"></div>
+            </div>
+
+            <!-- QR Scanner Modal -->
+            <div id="qrScannerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; display: flex; align-items: center; justify-content: center;">
+                <div style="background: white; padding: 24px; border-radius: 12px; max-width: 500px; width: 90%;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3 style="margin: 0;">Scan Patient QR Code</h3>
+                        <button id="closeQrScanner" style="background: none; border: none; font-size: 24px; cursor: pointer;">×</button>
+                    </div>
+                    <div id="qrReader" style="width: 100%;"></div>
+                    <p style="text-align: center; color: var(--text-secondary); margin-top: 16px; font-size: 14px;">Position the QR code within the frame</p>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="grid grid-2">
+                <div class="card">
+                    <div class="card-header">📋 Recent Prescriptions</div>
+                    <div id="recentPrescriptions">
+                        <p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">No recent prescriptions</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">📊 Statistics</div>
+                    <div>
+                        <div style="margin-bottom: 16px;">
+                            <p style="font-size: 12px; color: var(--text-secondary);">Total Patients Treated</p>
+                            <p style="font-size: 32px; font-weight: 700; color: var(--primary);" id="totalPatients">0</p>
+                        </div>
+                        <div style="margin-bottom: 16px;">
+                            <p style="font-size: 12px; color: var(--text-secondary);">Prescriptions This Month</p>
+                            <p style="font-size: 32px; font-weight: 700; color: var(--secondary);" id="monthlyPrescriptions">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { auth, db, doc, getDoc, collection, query, where, getDocs, orderBy, limit } from './firebase-config.js';
+        import { checkAuth, logout } from './auth.js';
+        import { formatDate, showToast } from './utils.js';
+
+        let doctorData;
+        let verificationStatus;
+
+        // Check authentication
+        checkAuth('doctor').then(async result => {
+            const doctorDoc = await getDoc(doc(db, 'doctors', result.user.uid));
+            if (doctorDoc.exists()) {
+                doctorData = doctorDoc.data();
+                verificationStatus = doctorData.verificationStatus;
+                document.getElementById('doctorName').textContent = doctorData.personalDetails.name;
+                
+                if (verificationStatus === 'pending') {
+                    document.getElementById('verificationAlert').style.display = 'block';
+                } else if (verificationStatus === 'approved') {
+                    document.getElementById('verifiedContent').style.display = 'block';
+                    loadRecentPrescriptions();
+                    loadStatistics();
+                }
+            }
+        }).catch(error => {
+            console.error('Auth check failed:', error);
+        });
+
+        // Logout
+        document.getElementById('logoutBtn').addEventListener('click', logout);
+
+        // Search patient
+        document.getElementById('searchBtn').addEventListener('click', searchPatient);
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchPatient();
+        });
+
+        async function searchPatient() {
+            if (verificationStatus !== 'approved') {
+                showToast('Your profile is not yet verified', 'error');
+                return;
+            }
+
+            const searchTerm = document.getElementById('searchInput').value.trim();
+            if (!searchTerm) {
+                showToast('Please enter a Patient ID or Phone Number', 'error');
+                return;
+            }
+
+            try {
+                const resultsDiv = document.getElementById('searchResults');
+                resultsDiv.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Searching...</p>';
+
+                // Search by patient ID
+                let patientsQuery = query(
+                    collection(db, 'patients'),
+                    where('patientId', '==', searchTerm)
+                );
+                
+                let snapshot = await getDocs(patientsQuery);
+                
+                // If not found, search by phone
+                if (snapshot.empty) {
+                    patientsQuery = query(
+                        collection(db, 'patients'),
+                        where('personalDetails.phone', '==', searchTerm)
+                    );
+                    snapshot = await getDocs(patientsQuery);
+                }
+
+                if (snapshot.empty) {
+                    resultsDiv.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No patient found</p>';
+                    return;
+                }
+
+                let resultsHTML = '<div class="grid grid-2" style="margin-top: 16px;">';
+                snapshot.forEach(doc => {
+                    const patient = doc.data();
+                    const hasAllergies = patient.medicalDetails.allergies.length > 0;
+                    
+                    resultsHTML += `
+                        <div class="card" style="cursor: pointer; transition: all 0.3s ease;" onclick="viewPatient('${doc.id}')">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                                <div>
+                                    <h3 style="margin: 0 0 4px 0;">${patient.personalDetails.name}</h3>
+                                    <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">ID: ${patient.patientId}</p>
+                                </div>
+                                ${hasAllergies ? '<span class="badge badge-danger">⚠️ Allergies</span>' : ''}
+                            </div>
+                            <div class="grid grid-2" style="gap: 8px;">
+                                <div>
+                                    <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">Age</p>
+                                    <p style="font-weight: 600; margin: 0;">${patient.personalDetails.age}</p>
+                                </div>
+                                <div>
+                                    <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">Blood Group</p>
+                                    <p style="font-weight: 600; margin: 0; color: var(--danger);">${patient.personalDetails.bloodGroup}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                resultsHTML += '</div>';
+                resultsDiv.innerHTML = resultsHTML;
+
+            } catch (error) {
+                console.error('Error searching patient:', error);
+                showToast('Error searching patient', 'error');
+            }
+        }
+
+        // View patient details
+        window.viewPatient = function(patientId) {
+            window.location.href = `doctor-patient-view.html?patientId=${patientId}`;
+        };
+
+        // QR Scanner
+        document.getElementById('qrScanBtn').addEventListener('click', () => {
+            if (verificationStatus !== 'approved') {
+                showToast('Your profile is not yet verified', 'error');
+                return;
+            }
+            document.getElementById('qrScannerModal').style.display = 'flex';
+            showToast('QR Scanner feature - Please use search by Patient ID for now', 'info');
+        });
+
+        document.getElementById('closeQrScanner').addEventListener('click', () => {
+            document.getElementById('qrScannerModal').style.display = 'none';
+        });
+
+        async function loadRecentPrescriptions() {
+            try {
+                const prescriptionsQuery = query(
+                    collection(db, 'prescriptions'),
+                    where('doctorId', '==', auth.currentUser.uid),
+                    orderBy('createdAt', 'desc'),
+                    limit(5)
+                );
+                
+                const snapshot = await getDocs(prescriptionsQuery);
+                const prescriptionsDiv = document.getElementById('recentPrescriptions');
+                
+                if (snapshot.empty) {
+                    prescriptionsDiv.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">No recent prescriptions</p>';
+                    return;
+                }
+
+                let html = '';
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    html += `
+                        <div style="padding: 12px; border-left: 3px solid var(--primary); background: var(--background); margin-bottom: 12px; border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span style="font-weight: 600;">Patient ID: ${data.patientId}</span>
+                                <span style="font-size: 12px; color: var(--text-secondary);">${formatDate(data.createdAt)}</span>
+                            </div>
+                            <p style="font-size: 14px; color: var(--text-secondary); margin: 0;">${data.diagnosisCategory}</p>
+                        </div>
+                    `;
+                });
+                prescriptionsDiv.innerHTML = html;
+
+            } catch (error) {
+                console.error('Error loading prescriptions:', error);
+            }
+        }
+
+        async function loadStatistics() {
+            try {
+                const prescriptionsQuery = query(
+                    collection(db, 'prescriptions'),
+                    where('doctorId', '==', auth.currentUser.uid)
+                );
+                
+                const snapshot = await getDocs(prescriptionsQuery);
+                
+                // Count unique patients
+                const uniquePatients = new Set();
+                snapshot.forEach(doc => {
+                    uniquePatients.add(doc.data().patientId);
+                });
+                
+                document.getElementById('totalPatients').textContent = uniquePatients.size;
+                
+                // Count this month's prescriptions
+                const now = new Date();
+                const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                let monthlyCount = 0;
+                
+                snapshot.forEach(doc => {
+                    const prescriptionDate = new Date(doc.data().createdAt);
+                    if (prescriptionDate >= firstDayOfMonth) {
+                        monthlyCount++;
+                    }
+                });
+                
+                document.getElementById('monthlyPrescriptions').textContent = monthlyCount;
+
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+            }
+        }
+    </script>
+</body>
+</html>

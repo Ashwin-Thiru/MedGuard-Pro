@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="https://public-frontend-cos.metadl.com/mgx/img/favicon_atoms.ico" type="image/x-icon">
+    <title>Admin Dashboard - Healthcare Platform</title>
+    <link rel="stylesheet" href="./style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <div>
+                <h1>Admin Dashboard</h1>
+                <p style="color: var(--text-secondary); margin-top: 4px;">Manage doctor verifications and platform</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-danger" id="logoutBtn">Logout</button>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="grid grid-4" style="margin-bottom: 24px;">
+            <div class="card">
+                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Pending Verifications</p>
+                <p style="font-size: 32px; font-weight: 700; color: var(--warning);" id="pendingCount">0</p>
+            </div>
+            <div class="card">
+                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Approved Doctors</p>
+                <p style="font-size: 32px; font-weight: 700; color: var(--secondary);" id="approvedCount">0</p>
+            </div>
+            <div class="card">
+                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Total Patients</p>
+                <p style="font-size: 32px; font-weight: 700; color: var(--primary);" id="patientsCount">0</p>
+            </div>
+            <div class="card">
+                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Total Prescriptions</p>
+                <p style="font-size: 32px; font-weight: 700; color: var(--text);" id="prescriptionsCount">0</p>
+            </div>
+        </div>
+
+        <!-- Pending Doctor Verifications -->
+        <div class="card">
+            <div class="card-header">⏳ Pending Doctor Verifications</div>
+            <div id="pendingDoctors">
+                <p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">No pending verifications</p>
+            </div>
+        </div>
+
+        <!-- Approved Doctors -->
+        <div class="card" style="margin-top: 24px;">
+            <div class="card-header">✅ Approved Doctors</div>
+            <div id="approvedDoctors">
+                <p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">No approved doctors</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { auth, db, collection, query, where, getDocs } from './firebase-config.js';
+        import { checkAuth, logout } from './auth.js';
+        import { formatDate, showToast } from './utils.js';
+
+        // Check authentication
+        checkAuth('admin').then(async () => {
+            await loadStatistics();
+            await loadPendingDoctors();
+            await loadApprovedDoctors();
+        }).catch(error => {
+            console.error('Auth check failed:', error);
+        });
+
+        // Logout
+        document.getElementById('logoutBtn').addEventListener('click', logout);
+
+        async function loadStatistics() {
+            try {
+                // Count pending doctors
+                const pendingQuery = query(
+                    collection(db, 'doctors'),
+                    where('verificationStatus', '==', 'pending')
+                );
+                const pendingSnapshot = await getDocs(pendingQuery);
+                document.getElementById('pendingCount').textContent = pendingSnapshot.size;
+
+                // Count approved doctors
+                const approvedQuery = query(
+                    collection(db, 'doctors'),
+                    where('verificationStatus', '==', 'approved')
+                );
+                const approvedSnapshot = await getDocs(approvedQuery);
+                document.getElementById('approvedCount').textContent = approvedSnapshot.size;
+
+                // Count patients
+                const patientsSnapshot = await getDocs(collection(db, 'patients'));
+                document.getElementById('patientsCount').textContent = patientsSnapshot.size;
+
+                // Count prescriptions
+                const prescriptionsSnapshot = await getDocs(collection(db, 'prescriptions'));
+                document.getElementById('prescriptionsCount').textContent = prescriptionsSnapshot.size;
+
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+            }
+        }
+
+        async function loadPendingDoctors() {
+            try {
+                const pendingQuery = query(
+                    collection(db, 'doctors'),
+                    where('verificationStatus', '==', 'pending')
+                );
+                const snapshot = await getDocs(pendingQuery);
+                const pendingDiv = document.getElementById('pendingDoctors');
+
+                if (snapshot.empty) {
+                    pendingDiv.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">No pending verifications</p>';
+                    return;
+                }
+
+                let html = '<div class="grid grid-2" style="margin-top: 16px;">';
+                snapshot.forEach(doc => {
+                    const doctor = doc.data();
+                    html += `
+                        <div class="card">
+                            <div style="display: flex; justify-content: between; align-items: start; margin-bottom: 12px;">
+                                <div style="flex: 1;">
+                                    <h3 style="margin: 0 0 4px 0;">${doctor.personalDetails.name}</h3>
+                                    <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">${doctor.professionalDetails.specialization}</p>
+                                </div>
+                                <span class="badge badge-warning">Pending</span>
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <p style="font-size: 14px; margin: 4px 0;"><strong>Registration:</strong> ${doctor.professionalDetails.registrationNumber}</p>
+                                <p style="font-size: 14px; margin: 4px 0;"><strong>Qualification:</strong> ${doctor.professionalDetails.qualification}</p>
+                                <p style="font-size: 14px; margin: 4px 0;"><strong>Experience:</strong> ${doctor.professionalDetails.experience} years</p>
+                                <p style="font-size: 14px; margin: 4px 0;"><strong>Hospital:</strong> ${doctor.professionalDetails.hospitalName}</p>
+                                <p style="font-size: 14px; margin: 4px 0;"><strong>Submitted:</strong> ${formatDate(doctor.createdAt)}</p>
+                            </div>
+                            <button class="btn btn-primary" style="width: 100%;" onclick="verifyDoctor('${doc.id}')">
+                                Review & Verify
+                            </button>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                pendingDiv.innerHTML = html;
+
+            } catch (error) {
+                console.error('Error loading pending doctors:', error);
+            }
+        }
+
+        async function loadApprovedDoctors() {
+            try {
+                const approvedQuery = query(
+                    collection(db, 'doctors'),
+                    where('verificationStatus', '==', 'approved')
+                );
+                const snapshot = await getDocs(approvedQuery);
+                const approvedDiv = document.getElementById('approvedDoctors');
+
+                if (snapshot.empty) {
+                    approvedDiv.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">No approved doctors</p>';
+                    return;
+                }
+
+                let html = '<div class="grid grid-3" style="margin-top: 16px;">';
+                snapshot.forEach(doc => {
+                    const doctor = doc.data();
+                    html += `
+                        <div class="card">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                                <h4 style="margin: 0;">${doctor.personalDetails.name}</h4>
+                                <span class="badge badge-success">Approved</span>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 8px 0;">${doctor.professionalDetails.specialization}</p>
+                            <p style="font-size: 12px; margin: 0;"><strong>Hospital:</strong> ${doctor.professionalDetails.hospitalName}</p>
+                            <p style="font-size: 12px; margin: 0;"><strong>Experience:</strong> ${doctor.professionalDetails.experience} years</p>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                approvedDiv.innerHTML = html;
+
+            } catch (error) {
+                console.error('Error loading approved doctors:', error);
+            }
+        }
+
+        window.verifyDoctor = function(doctorId) {
+            window.location.href = `admin-verify-doctor.html?doctorId=${doctorId}`;
+        };
+    </script>
+</body>
+</html>

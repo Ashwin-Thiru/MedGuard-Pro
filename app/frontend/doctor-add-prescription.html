@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="https://public-frontend-cos.metadl.com/mgx/img/favicon_atoms.ico" type="image/x-icon">
+    <title>Add Prescription - Healthcare Platform</title>
+    <link rel="stylesheet" href="./style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <div>
+                <h1>Add New Prescription</h1>
+                <button class="btn btn-outline" onclick="window.history.back()" style="margin-top: 8px;">← Back</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <form id="prescriptionForm">
+                <div class="form-group">
+                    <label class="form-label">Reason for Visit *</label>
+                    <textarea id="visitReason" class="form-textarea" required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Diagnosis Category *</label>
+                    <select id="diagnosisCategory" class="form-select" required>
+                        <option value="">Select Category</option>
+                        <option value="Fever">Fever</option>
+                        <option value="Allergy">Allergy</option>
+                        <option value="Infection">Infection</option>
+                        <option value="Pain">Pain</option>
+                        <option value="Respiratory">Respiratory</option>
+                        <option value="Digestive">Digestive</option>
+                        <option value="Skin">Skin</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <div class="card-header" style="margin-top: 24px;">💊 Medicines</div>
+                <div id="medicinesContainer"></div>
+                <button type="button" id="addMedicineBtn" class="btn btn-secondary" style="margin-top: 12px;">+ Add Medicine</button>
+
+                <div style="margin-top: 32px; text-align: center;">
+                    <button type="submit" class="btn btn-primary" style="padding: 14px 48px; font-size: 16px;">
+                        Save Prescription
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module">
+        import { auth, db, doc, getDoc, addDoc, collection } from './firebase-config.js';
+        import { checkAuth } from './auth.js';
+        import { showToast } from './utils.js';
+        import { sendPrescriptionNotification } from './notifications.js';
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const patientId = urlParams.get('patientId');
+        let doctorData;
+        let patientData;
+        let medicineCount = 0;
+
+        if (!patientId) {
+            showToast('No patient ID provided', 'error');
+            setTimeout(() => window.history.back(), 2000);
+        }
+
+        // Check authentication
+        checkAuth('doctor').then(async result => {
+            const doctorDoc = await getDoc(doc(db, 'doctors', result.user.uid));
+            if (doctorDoc.exists() && doctorDoc.data().verificationStatus === 'approved') {
+                doctorData = doctorDoc.data();
+                const patientDoc = await getDoc(doc(db, 'patients', patientId));
+                if (patientDoc.exists()) {
+                    patientData = patientDoc.data();
+                    addMedicineField(); // Add first medicine field
+                } else {
+                    showToast('Patient not found', 'error');
+                    setTimeout(() => window.history.back(), 2000);
+                }
+            } else {
+                showToast('You are not authorized to add prescriptions', 'error');
+                setTimeout(() => window.history.back(), 2000);
+            }
+        }).catch(error => {
+            console.error('Auth check failed:', error);
+        });
+
+        // Add medicine field
+        document.getElementById('addMedicineBtn').addEventListener('click', addMedicineField);
+
+        function addMedicineField() {
+            medicineCount++;
+            const container = document.getElementById('medicinesContainer');
+            const medicineDiv = document.createElement('div');
+            medicineDiv.className = 'card';
+            medicineDiv.style.marginBottom = '16px';
+            medicineDiv.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h4 style="margin: 0;">Medicine ${medicineCount}</h4>
+                    <button type="button" class="btn btn-danger" style="padding: 4px 12px; font-size: 12px;" onclick="this.parentElement.parentElement.remove()">Remove</button>
+                </div>
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Medicine Name *</label>
+                        <input type="text" class="form-input medicine-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Dosage *</label>
+                        <input type="text" class="form-input medicine-dosage" placeholder="e.g., 500mg, 1 tablet, 5ml" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Timing *</label>
+                    <div style="display: flex; gap: 16px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" class="medicine-morning" style="margin-right: 6px;"> Morning
+                        </label>
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" class="medicine-afternoon" style="margin-right: 6px;"> Afternoon
+                        </label>
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" class="medicine-night" style="margin-right: 6px;"> Night
+                        </label>
+                    </div>
+                </div>
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Before/After Food *</label>
+                        <select class="form-select medicine-food" required>
+                            <option value="">Select</option>
+                            <option value="Before">Before Food</option>
+                            <option value="After">After Food</option>
+                            <option value="With">With Food</option>
+                            <option value="Anytime">Anytime</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Duration (days) *</label>
+                        <input type="number" class="form-input medicine-duration" min="1" required>
+                    </div>
+                </div>
+            `;
+            container.appendChild(medicineDiv);
+        }
+
+        // Form submission
+        document.getElementById('prescriptionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Collect medicines
+            const medicines = [];
+            const medicineCards = document.querySelectorAll('#medicinesContainer .card');
+            
+            if (medicineCards.length === 0) {
+                showToast('Please add at least one medicine', 'error');
+                return;
+            }
+
+            medicineCards.forEach(card => {
+                const morning = card.querySelector('.medicine-morning').checked;
+                const afternoon = card.querySelector('.medicine-afternoon').checked;
+                const night = card.querySelector('.medicine-night').checked;
+
+                if (!morning && !afternoon && !night) {
+                    showToast('Please select at least one timing for each medicine', 'error');
+                    return;
+                }
+
+                medicines.push({
+                    name: card.querySelector('.medicine-name').value,
+                    dosage: card.querySelector('.medicine-dosage').value,
+                    timing: {
+                        morning,
+                        afternoon,
+                        night
+                    },
+                    beforeAfterFood: card.querySelector('.medicine-food').value,
+                    duration: parseInt(card.querySelector('.medicine-duration').value)
+                });
+            });
+
+            if (medicines.length === 0) return;
+
+            try {
+                showToast('Saving prescription...', 'info');
+
+                const prescriptionData = {
+                    patientId: patientData.patientId,
+                    doctorId: auth.currentUser.uid,
+                    doctorName: doctorData.personalDetails.name,
+                    visitReason: document.getElementById('visitReason').value,
+                    diagnosisCategory: document.getElementById('diagnosisCategory').value,
+                    medicines,
+                    createdAt: new Date().toISOString(),
+                    timestamp: new Date().toISOString()
+                };
+
+                await addDoc(collection(db, 'prescriptions'), prescriptionData);
+
+                // Send SMS notification
+                try {
+                    await sendPrescriptionNotification(
+                        patientData.personalDetails.phone,
+                        doctorData.personalDetails.name
+                    );
+                } catch (smsError) {
+                    console.error('SMS notification failed:', smsError);
+                }
+
+                showToast('Prescription saved successfully!', 'success');
+                
+                setTimeout(() => {
+                    window.location.href = `doctor-patient-view.html?patientId=${patientId}`;
+                }, 2000);
+
+            } catch (error) {
+                console.error('Error saving prescription:', error);
+                showToast('Error saving prescription: ' + error.message, 'error');
+            }
+        });
+    </script>
+</body>
+</html>
